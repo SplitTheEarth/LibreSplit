@@ -1,4 +1,7 @@
 #include "settings_dialog.h"
+#include "glib.h"
+#include "src/gui/app_window.h"
+#include "src/gui/theming.h"
 #include "src/settings/definitions.h"
 #include "src/settings/settings.h"
 
@@ -52,6 +55,37 @@ static void save_gui_settings(GSimpleAction* action, GVariant* parameter, gpoint
                 break;
         }
     }
+
+    GtkApplication* real_app = GTK_APPLICATION(g_application_get_default());
+    GtkWindow* active_win = gtk_application_get_active_window(real_app);
+    GList* windows = gtk_application_get_windows(real_app);
+
+    LSAppWindow* win = NULL;
+
+    for (GList* l = windows; l != NULL; l = l->next) {
+        if (l->data != (gpointer)active_win) {
+            win = (LSAppWindow*)l->data;
+            break;
+        }
+    }
+
+    if (win != NULL) {
+        const char* new_name = NULL;
+        const char* new_variant = NULL;
+
+        for (size_t i = 0; i < settings_number; i++) {
+            if (strcmp(gui_settings[i].settings_entry->key, "name") == 0) {
+                new_name = gui_settings[i].settings_entry->value.s;
+            } else if (strcmp(gui_settings[i].settings_entry->key, "variant") == 0) {
+                new_variant = gui_settings[i].settings_entry->value.s;
+            }
+        }
+
+        if (new_name != NULL) {
+            ls_app_load_theme_with_fallback(win, new_name, new_variant);
+        }
+    }
+
     // Call the normal save_settings thing
     config_save();
 }

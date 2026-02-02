@@ -30,8 +30,6 @@ typedef struct LibreSplitConfig {
     ConfigEntry hide_cursor;
     ConfigEntry auto_splitter_enabled;
     ConfigEntry global_hotkeys;
-    ConfigEntry theme;
-    ConfigEntry theme_variant;
     ConfigEntry decimals;
     ConfigEntry save_run_history;
 } LibreSplitConfig;
@@ -46,6 +44,11 @@ typedef struct KeybindConfig {
     ConfigEntry toggle_win_on_top;
 } KeybindConfig;
 
+typedef struct ThemeConfig {
+    ConfigEntry name;
+    ConfigEntry variant;
+} ThemeConfig;
+
 typedef struct HistoryConfig {
     ConfigEntry split_file;
     ConfigEntry last_split_folder;
@@ -56,6 +59,7 @@ typedef struct HistoryConfig {
 typedef struct AppConfig {
     LibreSplitConfig libresplit;
     KeybindConfig keybinds;
+    ThemeConfig theme;
     HistoryConfig history;
 } AppConfig;
 
