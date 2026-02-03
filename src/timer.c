@@ -985,5 +985,8 @@ int ls_timer_cancel(ls_timer* timer)
  */
 bool is_run_started(ls_timer* timer)
 {
+    if (timer == NULL) {
+        return false;
+    }
     return timer->running || atomic_load(&run_started);
 }
