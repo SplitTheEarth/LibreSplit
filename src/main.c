@@ -7,6 +7,7 @@
 #include "gui/timer.h"
 #include "gui/utils.h"
 #include "gui/welcome_box.h"
+#include "keybinds/delayed_handlers.h"
 #include "keybinds/keybinds.h"
 #include "keybinds/keybinds_callbacks.h"
 #include "lasr/auto-splitter.h"
@@ -14,6 +15,7 @@
 #include "settings/settings.h"
 #include "settings/utils.h"
 #include "shared.h"
+#include "src/keybinds/delayed_callbacks.h"
 #include "timer.h"
 
 #include <gtk/gtk.h>
@@ -123,6 +125,7 @@ static gboolean ls_app_window_step(gpointer data)
             }
         }
     }
+    process_delayed_handlers(win);
 
     return TRUE;
 }

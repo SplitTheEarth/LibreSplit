@@ -3,7 +3,6 @@
 #include <gtk/gtk.h>
 
 extern void timer_start_split(LSAppWindow* win);
-extern void timer_stop_reset(LSAppWindow* win);
 extern void timer_cancel_run(LSAppWindow* win);
 extern void timer_skip(LSAppWindow* win);
 extern void timer_unsplit(LSAppWindow* win);

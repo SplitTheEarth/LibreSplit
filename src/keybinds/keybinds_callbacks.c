@@ -1,5 +1,6 @@
 #include "keybinds_callbacks.h"
 #include "bind.h"
+#include "src/gui/timer.h"
 
 void keybind_start_split(GtkWidget* widget, LSAppWindow* win)
 {
@@ -8,7 +9,10 @@ void keybind_start_split(GtkWidget* widget, LSAppWindow* win)
 
 void keybind_stop_reset(const char* str, LSAppWindow* win)
 {
-    timer_stop_reset(win);
+    // NOTE: [Penaz] [2026-02-02] This needs to be put as a "delayed handler",
+    // ^ since it shows a dialog, such dialog would stop the event processing,
+    // ^ locking up LibreSplit or potentially the entire DE when global_hotkeys is enabled.
+    win->delayed_handlers.stop_reset = true;
 }
 
 void keybind_cancel(const char* str, LSAppWindow* win)

@@ -6,7 +6,9 @@
 #include "src/settings/settings.h"
 
 #include <gdk-pixbuf/gdk-pixbuf.h>
+#include <gdk/gdk.h>
 #include <glib-object.h>
+#include <glibconfig.h>
 #include <gtk/gtk.h>
 #include <stdio.h>
 #include <string.h>
@@ -14,6 +16,15 @@
 static LSGuiSetting* gui_settings;
 static LSAppWindow* g_main_window = NULL; // Reference to main window
 
+/**
+ * Takes the application config and counts how many settings are available.
+ *
+ * This is used to create space for the dynamic settings window.
+ *
+ * @param cfg The LibreSplit AppConfig instance.
+ *
+ * @return The number of settings available.
+ */
 static size_t enumerate_settings(AppConfig cfg)
 {
     int settings_number = 0;
@@ -27,6 +38,15 @@ static size_t enumerate_settings(AppConfig cfg)
     return settings_number;
 }
 
+/**
+ * Frees memory when the help/about dialog is closed
+ *
+ * @param widget The Window itself
+ * @param event unused
+ * @param user_data unused
+ *
+ * @return True if everything went well.
+ */
 static gboolean on_help_window_delete(GtkWidget* widget, GdkEvent* event, gpointer user_data)
 {
     gtk_widget_destroy(widget);
@@ -144,6 +164,57 @@ static void save_gui_settings(GSimpleAction* action, GVariant* parameter, gpoint
     config_save();
 }
 
+/**
+ * Converts a combination of Modifiers and a keyval into a gsettings string for key binds.
+ *
+ * @param keyval The value of the Key pressed.
+ * @param modifiers The modifiers that are pressed.
+ * @param buffer The buffer to write the final string into.
+ * @param buffer_size The destination buffer size
+ */
+static void get_key_string(gint keyval, GdkModifierType modifiers, char* buffer, size_t buffer_size)
+{
+    const char* key_name = gdk_keyval_name(gdk_keyval_to_lower(keyval));
+    char str_modifiers[64];
+
+    str_modifiers[0] = '\0';
+
+    // Process modifiers
+    if (modifiers & GDK_CONTROL_MASK) {
+        strcat(str_modifiers, "<Control>");
+    }
+    if (modifiers & GDK_SHIFT_MASK) {
+        strcat(str_modifiers, "<Shift>");
+    }
+    if (modifiers & GDK_MOD1_MASK) {
+        strcat(str_modifiers, "<Alt>");
+    }
+    if (modifiers & GDK_SUPER_MASK) {
+        strcat(str_modifiers, "<Super>");
+    }
+    if (modifiers & GDK_HYPER_MASK) {
+        strcat(str_modifiers, "<Hyper>");
+    }
+    snprintf(buffer, buffer_size, "%s%s", str_modifiers, key_name);
+}
+
+/**
+ * Handler for key press events on "Key Grabber" entries.
+ *
+ * @param widget The entry widget
+ * @param event The key pressed event
+ * @param data unused
+ *
+ * @return True if the handler terminated correctly.
+ */
+bool on_key_press(GtkWidget* widget, GdkEventKey* event, gpointer data)
+{
+    char key_buffer[128];
+    get_key_string(event->keyval, event->state, key_buffer, sizeof(key_buffer));
+    gtk_entry_set_text(GTK_ENTRY(widget), key_buffer);
+    return TRUE;
+}
+
 static void set_widget_defaults(GtkWidget* obj)
 {
     gtk_widget_set_margin_top(obj, 8);
@@ -195,6 +266,7 @@ static void build_settings_dialog(GtkApplication* app, gpointer data)
 
                     gui_settings[settings_idx].entry_buffer = gtk_entry_buffer_new(entry.value.s, sizeof(entry.value.s));
                     gui_settings[settings_idx].widget = gtk_entry_new_with_buffer(gui_settings[settings_idx].entry_buffer);
+                    g_signal_connect(gui_settings[settings_idx].widget, "key-press-event", G_CALLBACK(on_key_press), NULL);
                     gtk_container_add(GTK_CONTAINER(box), gui_settings[settings_idx].widget);
                     break;
                 case CFG_BOOL:
