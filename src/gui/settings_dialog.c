@@ -9,8 +9,10 @@
 #include <glib-object.h>
 #include <gtk/gtk.h>
 #include <stdio.h>
+#include <string.h>
 
 static LSGuiSetting* gui_settings;
+static LSAppWindow* g_main_window = NULL; // Reference to main window
 
 static size_t enumerate_settings(AppConfig cfg)
 {
@@ -32,9 +34,63 @@ static gboolean on_help_window_delete(GtkWidget* widget, GdkEvent* event, gpoint
     return TRUE;
 }
 
+/**
+ * Shows an error dialog for invalid theme names.
+ *
+ * @param parent_window The parent window for the dialog.
+ * @param theme_name The invalid theme name.
+ * @param theme_variant The invalid theme variant (can be NULL).
+ */
+static void show_theme_error_dialog(GtkWindow* parent_window, const char* theme_name, const char* theme_variant)
+{
+    char message[512];
+    if (theme_variant && strlen(theme_variant) > 0) {
+        snprintf(message, sizeof(message),
+            "Theme not found: \"%s\" (variant: \"%s\")\n\n"
+            "Please check the theme name and variant are correct.\n"
+            "The theme files should be located in:\n"
+            "$XDG_CONFIG_HOME/libresplit/themes/%s/%s-%s.css",
+            theme_name, theme_variant, theme_name, theme_name, theme_variant);
+    } else {
+        snprintf(message, sizeof(message),
+            "Theme not found: \"%s\"\n\n"
+            "Please check the theme name is correct.\n"
+            "The theme file should be located in:\n"
+            "$XDG_CONFIG_HOME/libresplit/themes/%s/%s.css",
+            theme_name, theme_name, theme_name);
+    }
+
+    GtkWidget* dialog = gtk_message_dialog_new(
+        parent_window,
+        GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
+        GTK_MESSAGE_ERROR,
+        GTK_BUTTONS_OK,
+        "%s", message);
+
+    gtk_window_set_title(GTK_WINDOW(dialog), "Theme Not Found");
+    gtk_dialog_run(GTK_DIALOG(dialog));
+    gtk_widget_destroy(dialog);
+}
+
+/**
+ * Saves the GUI settings and validates theme changes.
+ * If theme settings have changed, validates the new theme exists and
+ * automatically refreshes the main window if valid.
+ *
+ * @param action The action that triggered this callback
+ * @param parameter Additional parameters (unused)
+ * @param app Pointer to the GTK application
+ */
 static void save_gui_settings(GSimpleAction* action, GVariant* parameter, gpointer app)
 {
+    // get the current theme settings to compare later
+    char old_theme_name[4096];
+    char old_theme_variant[4096];
+    strcpy(old_theme_name, cfg.theme.name.value.s);
+    strcpy(old_theme_variant, cfg.theme.variant.value.s);
+
     size_t settings_number = enumerate_settings(cfg);
+
     // Parse all values in gui_settings, assign them to the respective cfg settings
     for (size_t i = 0; i < settings_number; i++) {
         LSGuiSetting setting_to_save = gui_settings[i];
@@ -56,37 +112,35 @@ static void save_gui_settings(GSimpleAction* action, GVariant* parameter, gpoint
         }
     }
 
-    GtkApplication* real_app = GTK_APPLICATION(g_application_get_default());
-    GtkWindow* active_win = gtk_application_get_active_window(real_app);
-    GList* windows = gtk_application_get_windows(real_app);
+    // check if theme settings have changed and validate them
+    bool theme_changed = (strcmp(old_theme_name, cfg.theme.name.value.s) != 0) || (strcmp(old_theme_variant, cfg.theme.variant.value.s) != 0);
 
-    LSAppWindow* win = NULL;
+    if (theme_changed && g_main_window) {
+        // validate the new theme (only if theme name is not empty)
+        if (strlen(cfg.theme.name.value.s) > 0) {
+            char theme_path[PATH_MAX];
+            int theme_found = ls_app_window_find_theme(g_main_window,
+                cfg.theme.name.value.s,
+                cfg.theme.variant.value.s,
+                theme_path);
 
-    for (GList* l = windows; l != NULL; l = l->next) {
-        if (l->data != (gpointer)active_win) {
-            win = (LSAppWindow*)l->data;
-            break;
-        }
-    }
+            if (!theme_found) {
+                // Theme doesn't exist, show error and restore old values
+                show_theme_error_dialog(NULL, cfg.theme.name.value.s, cfg.theme.variant.value.s);
 
-    if (win != NULL) {
-        const char* new_name = NULL;
-        const char* new_variant = NULL;
+                // Restore the old theme settings
+                strcpy(cfg.theme.name.value.s, old_theme_name);
+                strcpy(cfg.theme.variant.value.s, old_theme_variant);
 
-        for (size_t i = 0; i < settings_number; i++) {
-            if (strcmp(gui_settings[i].settings_entry->key, "name") == 0) {
-                new_name = gui_settings[i].settings_entry->value.s;
-            } else if (strcmp(gui_settings[i].settings_entry->key, "variant") == 0) {
-                new_variant = gui_settings[i].settings_entry->value.s;
+                return; // Don't save settings if theme is invalid
             }
         }
 
-        if (new_name != NULL) {
-            ls_app_load_theme_with_fallback(win, new_name, new_variant);
-        }
+        // theme is valid (or empty for fallback), refresh the main window
+        ls_app_refresh_theme(g_main_window);
     }
 
-    // Call the normal save_settings thing
+    // Save all the settings
     config_save();
 }
 
@@ -177,5 +231,10 @@ void show_settings_dialog(GSimpleAction* action, GVariant* parameter, gpointer a
     if (parameter != NULL) {
         app = parameter;
     }
-    build_settings_dialog(app, NULL);
+
+    // Set the global main window reference
+    GList* windows = gtk_application_get_windows(GTK_APPLICATION(app));
+    g_main_window = windows ? (LSAppWindow*)(windows->data) : NULL;
+
+    build_settings_dialog(GTK_APPLICATION(app), NULL);
 }
