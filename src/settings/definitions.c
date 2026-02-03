@@ -124,7 +124,7 @@ AppConfig cfg = {
         .name = {
             .key = "name",
             .type = CFG_STRING,
-            .value.s = "standard",
+            .value.s = "",
             .desc = "Theme name",
         },
         .variant = {

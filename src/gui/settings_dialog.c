@@ -55,6 +55,46 @@ static gboolean on_help_window_delete(GtkWidget* widget, GdkEvent* event, gpoint
 }
 
 /**
+ * Shows a warning dialog when user tries to change theme but a split has its own theme.
+ *
+ * @param parent_window The parent window for the dialog.
+ * @param split_theme_name The theme name from the current split.
+ * @param split_theme_variant The theme variant from the current split (can be NULL).
+ */
+static void show_split_theme_warning(GtkWindow* parent_window, const char* split_theme_name, const char* split_theme_variant)
+{
+    char message[1024];
+    if (split_theme_variant && strlen(split_theme_variant) > 0) {
+        snprintf(message, sizeof(message),
+            "Cannot change theme settings.\n\n"
+            "The current split has its own theme: \"%s\" (variant: \"%s\")\n\n"
+            "To change the global theme, either:\n"
+            "• Close the current split, or\n"
+            "• Load a split without a preset theme",
+            split_theme_name, split_theme_variant);
+    } else {
+        snprintf(message, sizeof(message),
+            "Cannot change theme settings.\n\n"
+            "The current split has its own theme: \"%s\"\n\n"
+            "To change the global theme, either:\n"
+            "• Close the current split, or\n"
+            "• Load a split without a preset theme",
+            split_theme_name);
+    }
+
+    GtkWidget* dialog = gtk_message_dialog_new(
+        parent_window,
+        GTK_DIALOG_MODAL | GTK_DIALOG_DESTROY_WITH_PARENT,
+        GTK_MESSAGE_WARNING,
+        GTK_BUTTONS_OK,
+        "%s", message);
+
+    gtk_window_set_title(GTK_WINDOW(dialog), "Theme Override Active");
+    gtk_dialog_run(GTK_DIALOG(dialog));
+    gtk_widget_destroy(dialog);
+}
+
+/**
  * Shows an error dialog for invalid theme names.
  *
  * @param parent_window The parent window for the dialog.
@@ -109,7 +149,7 @@ static void show_theme_error_dialog(GtkWindow* parent_window, const char* theme_
         GTK_BUTTONS_OK,
         "%s", message);
 
-    gtk_window_set_title(GTK_WINDOW(dialog), "Theme Not Found");
+    gtk_window_set_title(GTK_WINDOW(dialog), "Theme Unavaliable");
     gtk_dialog_run(GTK_DIALOG(dialog));
     gtk_widget_destroy(dialog);
 
@@ -160,6 +200,17 @@ static void save_gui_settings(GSimpleAction* action, GVariant* parameter, gpoint
     bool theme_changed = (strcmp(old_theme_name, cfg.theme.name.value.s) != 0) || (strcmp(old_theme_variant, cfg.theme.variant.value.s) != 0);
 
     if (theme_changed && g_main_window) {
+        // First check if a split has its own theme - if so, warn user and prevent change
+        if (g_main_window->game && g_main_window->game->theme) {
+            show_split_theme_warning(NULL, g_main_window->game->theme, g_main_window->game->theme_variant);
+
+            // Restore the old theme settings
+            strcpy(cfg.theme.name.value.s, old_theme_name);
+            strcpy(cfg.theme.variant.value.s, old_theme_variant);
+
+            return; // Don't save settings if split theme is active
+        }
+
         // validate the new theme (only if theme name is not empty)
         if (strlen(cfg.theme.name.value.s) > 0) {
             char theme_path[PATH_MAX];
