@@ -122,18 +122,3 @@ void ls_app_load_theme_with_fallback(LSAppWindow* win, const char* name, const c
         }
     }
 }
-
-/**
- * Refreshes the theme using the current settings from the config.
- * This function reads the theme name and variant from the global cfg
- * and reloads the theme for the specified window.
- *
- * @param win The LibreSplit window to refresh the theme for.
- */
-void ls_app_refresh_theme(LSAppWindow* win)
-{
-    const char* current_theme_name = cfg.theme.name.value.s;
-    const char* current_theme_variant = cfg.theme.variant.value.s;
-
-    ls_app_load_theme_with_fallback(win, current_theme_name, current_theme_variant);
-}
