@@ -96,45 +96,44 @@ static void save_gui_settings(GSimpleAction* action, GVariant* parameter, gpoint
     }
 
     // check if theme settings have changed and validate them
-    bool theme_changed = (strcmp(old_theme_name, cfg.theme.name.value.s) != 0) || (strcmp(old_theme_variant, cfg.theme.variant.value.s) != 0);
-
-    if (theme_changed && g_main_window) {
-        // First check if a split has its own theme - if so, warn user and prevent change
-        if (g_main_window->game && g_main_window->game->theme) {
-            show_split_theme_warning(NULL, g_main_window->game->theme, g_main_window->game->theme_variant);
-
-            // Restore the old theme settings
-            strcpy(cfg.theme.name.value.s, old_theme_name);
-            strcpy(cfg.theme.variant.value.s, old_theme_variant);
-
-            return; // Don't save settings if split theme is active
-        }
-
-        // validate the new theme (only if theme name is not empty)
-        if (strlen(cfg.theme.name.value.s) > 0) {
-            char theme_path[PATH_MAX];
-            int theme_found = ls_app_window_find_theme(g_main_window,
-                cfg.theme.name.value.s,
-                cfg.theme.variant.value.s,
-                theme_path);
-
-            if (!theme_found) {
-                // Theme doesn't exist, show error and restore old values
-                show_theme_error_dialog(NULL, cfg.theme.name.value.s, cfg.theme.variant.value.s);
+    if (g_main_window) {
+        bool theme_changed = (strcmp(old_theme_name, cfg.theme.name.value.s) != 0) || (strcmp(old_theme_variant, cfg.theme.variant.value.s) != 0);
+        if (theme_changed) {
+            // First check if a split has its own theme - if so, warn user and prevent change
+            if (g_main_window->game && g_main_window->game->theme) {
+                show_split_theme_warning(NULL, g_main_window->game->theme, g_main_window->game->theme_variant);
 
                 // Restore the old theme settings
                 strcpy(cfg.theme.name.value.s, old_theme_name);
                 strcpy(cfg.theme.variant.value.s, old_theme_variant);
 
-                return; // Don't save settings if theme is invalid
+                return; // Don't save settings if split theme is active
             }
+            // validate the new theme (only if theme name is not empty)
+            if (strlen(cfg.theme.name.value.s) > 0) {
+                char theme_path[PATH_MAX];
+                int theme_found = ls_app_window_find_theme(g_main_window,
+                    cfg.theme.name.value.s,
+                    cfg.theme.variant.value.s,
+                    theme_path);
+
+                if (!theme_found) {
+                    // Theme doesn't exist, show error and restore old values
+                    show_theme_error_dialog(NULL, cfg.theme.name.value.s, cfg.theme.variant.value.s);
+
+                    // Restore the old theme settings
+                    strcpy(cfg.theme.name.value.s, old_theme_name);
+                    strcpy(cfg.theme.variant.value.s, old_theme_variant);
+
+                    return; // Don't save settings if theme is invalid
+                }
+            }
+            // theme is valid (or empty for fallback), refresh the main window
+            const char* current_theme_name = cfg.theme.name.value.s;
+            const char* current_theme_variant = cfg.theme.variant.value.s;
+
+            ls_app_load_theme_with_fallback(g_main_window, current_theme_name, current_theme_variant);
         }
-
-        // theme is valid (or empty for fallback), refresh the main window
-        const char* current_theme_name = cfg.theme.name.value.s;
-        const char* current_theme_variant = cfg.theme.variant.value.s;
-
-        ls_app_load_theme_with_fallback(g_main_window, current_theme_name, current_theme_variant);
     }
 
     // Save all the settings
@@ -268,7 +267,7 @@ static void build_settings_dialog(GtkApplication* app, gpointer data)
     }
     gtk_container_add(GTK_CONTAINER(main_box), tabs);
     GtkWidget* save_btn = gtk_button_new_with_label("Save");
-    g_signal_connect(save_btn, "clicked", G_CALLBACK(save_gui_settings), NULL);
+    g_signal_connect(save_btn, "clicked", G_CALLBACK(save_gui_settings), app);
     gtk_container_add(GTK_CONTAINER(main_box), save_btn);
     gtk_container_add(GTK_CONTAINER(window), main_box);
     gtk_widget_show_all(main_box);
